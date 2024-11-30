@@ -5,14 +5,13 @@ from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from dotenv import load_dotenv
 from chromadb import Client
 from chromadb.config import Settings
-from cerebras.cloud.sdk import Cerebras
-
+from openai import OpenAI
 class NFLRankingsProcessor:
-    def __init__(self, embedding_model_name: str, cerebras_client):
+    def __init__(self, embedding_model_name: str, llm):
         self.embeddings = FastEmbedEmbeddings(model_name=embedding_model_name)
         self.chroma_client = Client(Settings())
         self.collection = self.chroma_client.create_collection(name="nfl_rankings")
-        self.cerebras_client = cerebras_client
+        self.llm = llm
 
     def clean_text(self, text: str) -> str:
         return ' '.join(text.strip().split())
@@ -67,23 +66,23 @@ Context:
 {context}
 
 Answer:"""
-        response = self.cerebras_client.chat.completions.create(
+        response = self.llm.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3.1-8b"
+            model="gpt-4o-mini"
         )
         return response.choices[0].message.content
 
 if __name__ == "__main__":
     load_dotenv()
-    api_key = os.getenv("CEREBRAS_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
 
     if not api_key:
         print("Error: Missing required environment variable (CEREBRAS_API_KEY)")
     else:
-        cerebras_client = Cerebras(api_key=api_key)
+        llm=OpenAI()
         processor = NFLRankingsProcessor(
             embedding_model_name="BAAI/bge-large-en-v1.5",
-            cerebras_client=cerebras_client
+            llm=llm
         )
         text_files = ['week10.txt', 'week11.txt', 'week12.txt']
         for file_path in text_files:
@@ -91,7 +90,7 @@ if __name__ == "__main__":
             rankings = processor.scrape_rankings(file_path, week)
             processor.save_to_chroma(rankings)
             print(f"Saved Week {week} rankings to ChromaDB.")
-        question = "What is the Lions' power ranking in week 10 of 2024?"
+        question = "How are the Patriots doing right now?"
         answer = processor.get_answer(question)
         print("\nQuestion:", question)
         print("\nAnswer:", answer)
